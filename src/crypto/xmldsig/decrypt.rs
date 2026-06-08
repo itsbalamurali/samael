@@ -91,7 +91,9 @@ pub(super) fn decrypt_value(
             const IV_LEN: usize = 12;
             const TAG_LEN: usize = 16;
             if data.len() < IV_LEN + TAG_LEN {
-                return Err(CryptoError::KeyError("aes-128-gcm ciphertext too short".into()));
+                return Err(CryptoError::KeyError(
+                    "aes-128-gcm ciphertext too short".into(),
+                ));
             }
             // XML-Enc GCM layout is IV(12) || ciphertext || tag(16); aes-gcm's
             // `decrypt` expects ciphertext||tag, which is exactly `data[12..]`.

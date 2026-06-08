@@ -82,8 +82,10 @@
             ";
 
             nativeBuildInputs = commonNativeBuildInputs;
-            cargoExtraArgs = "--features xmlsec";
-            cargoTestExtraArgs = "--features xmlsec";
+            # The crate is pure-Rust by default (rustcrypto + xmldsig-rs); no
+            # extra features or C libraries are required to build or test it.
+            cargoExtraArgs = "";
+            cargoTestExtraArgs = "";
           };
           # Build *just* the cargo dependencies, so we can reuse
           # all of that work (e.g. via cachix) when running in CI
@@ -146,6 +148,10 @@
             # Audit dependencies
             samael-audit = craneLib.cargoAudit {
               inherit src advisory-db;
+              # RUSTSEC-2023-0071: Marvin attack (RSA timing sidechannel) in the
+              # pure-Rust `rsa` crate. There is no fixed release available yet;
+              # this is a known, accepted limitation of the RustCrypto RSA stack.
+              cargoAuditExtraArgs = "--ignore RUSTSEC-2023-0071";
             };
 
             # Run tests with cargo-nextest
@@ -154,7 +160,7 @@
             samael-nextest = craneLib.cargoNextest (commonArgs // {
               inherit cargoArtifacts;
               cargoExtraArgs = "";
-              cargoNextestExtraArgs = "--features xmlsec";
+              cargoNextestExtraArgs = "";
               partitions = 1;
               partitionType = "count";
             });

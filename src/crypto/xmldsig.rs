@@ -124,10 +124,9 @@ impl CryptoProvider for XmlDsig {
     ) -> Result<(), CryptoError> {
         let xml = std::str::from_utf8(xml.as_ref()).map_err(key_err)?;
         let key = CertKey::from_cert_der(x509_cert_der.der_data())?;
-        let result = VerifyContext::new()
-            .key(&key)
-            .verify(xml)
-            .map_err(|e| CryptoError::KeyError(format!("xml signature verification failed: {e}")))?;
+        let result = VerifyContext::new().key(&key).verify(xml).map_err(|e| {
+            CryptoError::KeyError(format!("xml signature verification failed: {e}"))
+        })?;
         match result.status {
             DsigStatus::Valid => Ok(()),
             _ => Err(CryptoError::InvalidSignature),
@@ -238,8 +237,11 @@ mod tests {
         ));
         // A real, valid certificate (the SP's) whose key did NOT sign this IdP response.
         let wrong = CertificateDer::from(
-            include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/test_vectors/sp_cert.der"))
-                .to_vec(),
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/test_vectors/sp_cert.der"
+            ))
+            .to_vec(),
         );
         let err = XmlDsig::verify_signed_xml(xml, &wrong, Some("ID"))
             .expect_err("wrong cert must not verify");
@@ -263,5 +265,4 @@ mod tests {
             "attacker-controlled content leaked into signed output"
         );
     }
-
 }

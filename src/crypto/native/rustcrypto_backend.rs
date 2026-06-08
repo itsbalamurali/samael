@@ -129,7 +129,10 @@ impl PrivateKeyOps for PrivateKey {
         }
     }
 
-    fn create_certificate(&self, params: &CertificateParams) -> Result<CertificateDer, CryptoError> {
+    fn create_certificate(
+        &self,
+        params: &CertificateParams,
+    ) -> Result<CertificateDer, CryptoError> {
         let profile = SelfSignedProfile::new(params)?;
         let serial = SerialNumber::from(rand_serial());
         let validity = Validity::from_now(Duration::from_secs(
@@ -140,15 +143,22 @@ impl PrivateKeyOps for PrivateKey {
         let der = match self {
             PrivateKey::Rsa(key) => {
                 let signing_key = RsaSigningKey::<Sha256>::new(key.clone());
-                let spki = SubjectPublicKeyInfoOwned::from_key(&RsaPublicKey::from(key)).map_err(err)?;
-                let builder = CertificateBuilder::new(profile, serial, validity, spki).map_err(err)?;
-                let cert = builder.build::<_, RsaSignature>(&signing_key).map_err(err)?;
+                let spki =
+                    SubjectPublicKeyInfoOwned::from_key(&RsaPublicKey::from(key)).map_err(err)?;
+                let builder =
+                    CertificateBuilder::new(profile, serial, validity, spki).map_err(err)?;
+                let cert = builder
+                    .build::<_, RsaSignature>(&signing_key)
+                    .map_err(err)?;
                 cert.to_der().map_err(err)?
             }
             PrivateKey::Ecdsa(key) => {
                 let spki = SubjectPublicKeyInfoOwned::from_key(key.verifying_key()).map_err(err)?;
-                let builder = CertificateBuilder::new(profile, serial, validity, spki).map_err(err)?;
-                let cert = builder.build::<_, EcDerSignature>(key.as_ref()).map_err(err)?;
+                let builder =
+                    CertificateBuilder::new(profile, serial, validity, spki).map_err(err)?;
+                let cert = builder
+                    .build::<_, EcDerSignature>(key.as_ref())
+                    .map_err(err)?;
                 cert.to_der().map_err(err)?
             }
         };

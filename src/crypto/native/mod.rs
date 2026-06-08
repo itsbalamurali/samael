@@ -41,7 +41,8 @@ pub trait PrivateKeyOps: Sized {
     fn sign_sha256(&self, data: &[u8]) -> Result<Vec<u8>, CryptoError>;
 
     /// Build a self-signed X.509 certificate for this key.
-    fn create_certificate(&self, params: &CertificateParams) -> Result<CertificateDer, CryptoError>;
+    fn create_certificate(&self, params: &CertificateParams)
+        -> Result<CertificateDer, CryptoError>;
 }
 
 /// Operations on a public verification key, regardless of backend.

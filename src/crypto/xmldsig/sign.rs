@@ -141,12 +141,18 @@ fn sign_signed_info(
         SIG_RSA_SHA256 => {
             let key = load_rsa_private_key(private_key_der)?;
             let signing_key = SigningKey::<Sha256>::new(key);
-            Ok(signing_key.try_sign(signed_info_c14n).map_err(err)?.to_vec())
+            Ok(signing_key
+                .try_sign(signed_info_c14n)
+                .map_err(err)?
+                .to_vec())
         }
         SIG_RSA_SHA1 => {
             let key = load_rsa_private_key(private_key_der)?;
             let signing_key = SigningKey::<Sha1>::new(key);
-            Ok(signing_key.try_sign(signed_info_c14n).map_err(err)?.to_vec())
+            Ok(signing_key
+                .try_sign(signed_info_c14n)
+                .map_err(err)?
+                .to_vec())
         }
         other => Err(CryptoError::KeyError(format!(
             "unsupported signature algorithm for signing: {other}"
