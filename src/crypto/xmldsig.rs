@@ -10,14 +10,16 @@
 //! not supported here and return [`CryptoError::CryptoDisabled`]; use the
 //! `xmlsec` feature for those.
 //!
-//! Anti-wrapping: [`reduce_xml_to_signed`](XmlDsigRs::reduce_xml_to_signed)
+//! Anti-wrapping: [`reduce_xml_to_signed`](XmlDsig::reduce_xml_to_signed)
 //! returns only the canonical bytes that were actually covered by a verified
 //! signature reference (xml-sec's pre-digest payload), so content wrapped
 //! outside the signed region cannot survive reduction.
 
 use super::{CertificateDer, CryptoError, CryptoProvider, ReduceMode};
+use crate::crypto::native::PrivateKey as NativePrivateKey;
 use crate::schema::CipherValue;
 
+use base64::{engine::general_purpose, Engine as _};
 use rsa::pkcs1v15::{Signature as RsaSig, VerifyingKey as RsaVk};
 use rsa::signature::Verifier;
 use rsa::RsaPublicKey;
@@ -31,8 +33,16 @@ use p256::ecdsa::{Signature as EcSig, VerifyingKey as EcVk};
 use xml_sec::xmldsig::parse::SignatureAlgorithm as XmlSigAlg;
 use xml_sec::xmldsig::verify::{DsigError, DsigStatus, VerifyContext, VerifyingKey};
 
-/// Pure-Rust, verify-only [`CryptoProvider`].
-pub struct XmlDsigRs;
+mod decrypt;
+mod sign;
+
+const XMLENC_RSA_OAEP: &str = "http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p";
+const XMLENC_RSA_1_5: &str = "http://www.w3.org/2001/04/xmlenc#rsa-1_5";
+const XMLENC_AES128_CBC: &str = "http://www.w3.org/2001/04/xmlenc#aes128-cbc";
+const XMLENC_AES128_GCM: &str = "http://www.w3.org/2009/xmlenc11#aes128-gcm";
+
+/// Pure-Rust [`CryptoProvider`] (sign + verify + decrypt), no C dependency.
+pub struct XmlDsig;
 
 /// A verification key extracted from an X.509 certificate, dispatching the
 /// actual signature math to the RustCrypto crates per declared algorithm.
@@ -87,8 +97,13 @@ impl VerifyingKey for CertKey {
                     .is_ok()
             }
             (CertKey::Ecdsa(key), XmlSigAlg::EcdsaP256Sha256) => {
-                let Ok(sig) = EcSig::from_der(signature_value) else {
-                    return Ok(false);
+                // XML-DSig ECDSA signatures are IEEE P1363 (raw r||s), not DER.
+                let sig = match EcSig::from_slice(signature_value) {
+                    Ok(sig) => sig,
+                    Err(_) => match EcSig::from_der(signature_value) {
+                        Ok(sig) => sig,
+                        Err(_) => return Ok(false),
+                    },
                 };
                 key.verify(signed_data, &sig).is_ok()
             }
@@ -99,8 +114,8 @@ impl VerifyingKey for CertKey {
     }
 }
 
-impl CryptoProvider for XmlDsigRs {
-    type PrivateKey = ();
+impl CryptoProvider for XmlDsig {
+    type PrivateKey = NativePrivateKey;
 
     fn verify_signed_xml<Bytes: AsRef<[u8]>>(
         xml: Bytes,
@@ -163,27 +178,27 @@ impl CryptoProvider for XmlDsigRs {
     }
 
     fn decrypt_assertion_key_info(
-        _cipher_value: &CipherValue,
-        _method: &str,
-        _decryption_key: &Self::PrivateKey,
+        cipher_value: &CipherValue,
+        method: &str,
+        decryption_key: &Self::PrivateKey,
     ) -> Result<Vec<u8>, CryptoError> {
-        Err(CryptoError::CryptoDisabled)
+        decrypt::decrypt_key(cipher_value, method, decryption_key)
     }
 
     fn decrypt_assertion_value_info(
-        _cipher_value: &CipherValue,
-        _method: &str,
-        _decryption_key: &[u8],
+        cipher_value: &CipherValue,
+        method: &str,
+        decryption_key: &[u8],
     ) -> Result<Vec<u8>, CryptoError> {
-        Err(CryptoError::CryptoDisabled)
+        decrypt::decrypt_value(cipher_value, method, decryption_key)
     }
 
     fn sign_xml<Bytes: AsRef<[u8]>>(
-        _xml: Bytes,
-        _private_key_der: &[u8],
+        xml: Bytes,
+        private_key_der: &[u8],
     ) -> Result<String, CryptoError> {
-        // xml-sec signing is not wired up; this backend is verify-only.
-        Err(CryptoError::CryptoDisabled)
+        let xml = std::str::from_utf8(xml.as_ref()).map_err(key_err)?;
+        sign::sign_enveloped(xml, private_key_der)
     }
 }
 
@@ -208,9 +223,9 @@ mod tests {
             "/test_vectors/response_signed_by_idp_2.xml"
         ));
         let cert = cert_der_from_xml(xml);
-        XmlDsigRs::verify_signed_xml(xml, &cert, Some("ID")).expect("should verify");
+        XmlDsig::verify_signed_xml(xml, &cert, Some("ID")).expect("should verify");
 
-        let reduced = XmlDsigRs::reduce_xml_to_signed(xml, &[cert], ReduceMode::default())
+        let reduced = XmlDsig::reduce_xml_to_signed(xml, &[cert], ReduceMode::default())
             .expect("should reduce");
         assert!(!reduced.is_empty());
     }
@@ -226,7 +241,7 @@ mod tests {
             include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/test_vectors/sp_cert.der"))
                 .to_vec(),
         );
-        let err = XmlDsigRs::verify_signed_xml(xml, &wrong, Some("ID"))
+        let err = XmlDsig::verify_signed_xml(xml, &wrong, Some("ID"))
             .expect_err("wrong cert must not verify");
         assert!(matches!(err, CryptoError::InvalidSignature));
     }
@@ -241,7 +256,7 @@ mod tests {
             "/test_vectors/ancestor_attack_signed.xml"
         ));
         let cert = cert_der_from_xml(xml);
-        let reduced = XmlDsigRs::reduce_xml_to_signed(xml, &[cert], ReduceMode::default())
+        let reduced = XmlDsig::reduce_xml_to_signed(xml, &[cert], ReduceMode::default())
             .expect("should reduce to signed content");
         assert!(
             !reduced.contains("attacker.evil.com"),
@@ -249,11 +264,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn signing_and_decryption_are_disabled() {
-        assert!(matches!(
-            XmlDsigRs::sign_xml("<x/>", &[]),
-            Err(CryptoError::CryptoDisabled)
-        ));
-    }
 }

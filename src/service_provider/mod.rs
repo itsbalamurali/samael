@@ -24,7 +24,7 @@ const SUBJECT_CONFIRMATION_METHOD_BEARER: &str = "urn:oasis:names:tc:SAML:2.0:cm
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "xmlsec")]
+#[cfg(feature = "xmldsig-rs")]
 use crate::schema::EncryptedAssertion;
 
 #[derive(Debug, Error)]
@@ -489,7 +489,7 @@ impl ServiceProvider {
         }
 
         if let Some(_encrypted_assertion) = &response.encrypted_assertion {
-            #[cfg(feature = "xmlsec")]
+            #[cfg(feature = "xmldsig-rs")]
             return self
                 .decrypt_assertion(_encrypted_assertion)
                 .and_then(|assertion| {
@@ -497,7 +497,7 @@ impl ServiceProvider {
                         .map(|()| assertion)
                 });
 
-            #[cfg(not(feature = "xmlsec"))]
+            #[cfg(not(feature = "xmldsig-rs"))]
             Err(Error::EncryptedAssertionsNotYetSupported)
         } else if let Some(assertion) = &response.assertion {
             self.validate_assertion(assertion, possible_request_ids)?;
@@ -507,7 +507,7 @@ impl ServiceProvider {
         }
     }
 
-    #[cfg(feature = "xmlsec")]
+    #[cfg(feature = "xmldsig-rs")]
     fn decrypt_assertion(
         &self,
         encrypted_assertion: &EncryptedAssertion,

@@ -28,44 +28,25 @@ Current Features:
 - Verify SAMLRequest (AuthnRequest) message signatures
 - Create signed SAMLResponse (Response) messages
 
-The `"xmlsec"` feature flag adds basic support for verifying and signing SAML messages. We're using a modified copy of [rust-xmlsec](https://github.com/voipir/rust-xmlsec) library (bindings to xmlsec1 library).
+### Crypto backends — pure Rust, no C dependencies
 
-### Crypto backends
+This branch is **fully pure-Rust by default**: there is no libxmlsec1, no libxml2, no OpenSSL and no build script. The entire crypto stack — key/cert generation, HTTP-Redirect URL signatures, XML digital signatures (sign + verify), and encrypted-assertion decryption — is implemented with [RustCrypto](https://github.com/RustCrypto) crates plus [`xml-sec`](https://crates.io/crates/xml-sec) for XML canonicalization.
 
-Key generation, X.509 certificate generation and HTTP-Redirect URL signing/verification are provided by a pluggable native crypto backend. Exactly one of the following mutually-exclusive features must be enabled:
+Features:
 
-- `openssl` (default) — uses the OpenSSL crate.
-- `rustcrypto` — a pure-Rust backend (`rsa`, `p256`/`ecdsa`, `sha2`, `x509-cert`) with no OpenSSL/C dependency. Supports RSA (PKCS#1 v1.5 + SHA-256) and ECDSA P-256 (SHA-256).
-
-The default feature set is `["openssl", "xmlsec"]`. For a pure-Rust build (no OpenSSL, no xmlsec) use:
-
-```sh
-cargo build --no-default-features --features rustcrypto
-```
-
-Note that XML digital signature signing/verification of full SAML documents (`sign_xml` / `verify_signed_xml` / `reduce_xml_to_signed`) requires either the `xmlsec` feature (full sign + verify + decrypt, via libxmlsec1) or the experimental `xmldsig-rs` feature (verify-only, pure Rust — see below). The `rustcrypto` backend on its own covers redirect-binding URL signatures and certificate/key handling.
-
-### Pure-Rust XML signature verification (experimental)
-
-The `xmldsig-rs` feature adds **pure-Rust XML signature verification** with no C dependency at all — no libxmlsec1, no OpenSSL. It uses the [`xml-sec`](https://crates.io/crates/xml-sec) crate for XML canonicalization (exclusive C14N) and reference/digest processing, and the RustCrypto backend for the RSA/ECDSA math (RSA-SHA1, RSA-SHA256, ECDSA-P256-SHA256).
+- `rustcrypto` (default) — native key/cert/URL crypto (`rsa`, `p256`/`ecdsa`, `sha2`, `x509-cert`). RSA (PKCS#1 v1.5 + SHA-256) and ECDSA P-256 (SHA-256).
+- `xmldsig-rs` (default) — pure-Rust XML digital signatures and XML encryption:
+  - `sign_xml` — enveloped signatures (exclusive C14N via `xml-sec`, RSA-SHA1/RSA-SHA256 signing via `rsa`).
+  - `verify_signed_xml` / `reduce_xml_to_signed` — verification (RSA-SHA1, RSA-SHA256, ECDSA-P256-SHA256). `reduce_xml_to_signed` returns only the canonical bytes covered by a verified signature reference, so signature-wrapping content is dropped.
+  - assertion decryption — RSA-OAEP-MGF1P / RSA-1.5 key transport and AES-128-CBC / AES-128-GCM data decryption.
+- `openssl` (optional, non-default) — the OpenSSL-crate native backend, mutually exclusive with `rustcrypto`. Provided for callers who still want it; it does not enable `xmldsig-rs`.
 
 ```sh
-# Fully C-free SP-side build:
-cargo build --no-default-features --features xmldsig-rs
+# Default: fully C-free build.
+cargo build
 ```
 
-This gives a `CryptoProvider` that can `verify_signed_xml` and `reduce_xml_to_signed` (the latter returns only the canonical bytes covered by a verified signature reference, so signature-wrapping content is dropped). It is **verify-only**: `sign_xml` and encrypted-assertion decryption return `CryptoError::CryptoDisabled` — use `xmlsec` if you need IdP signing or encrypted assertions. Because `xml-sec` is young and unaudited, treat this backend as experimental; `xmlsec` remains the default, battle-tested path.
-
-If you want to use the `"xmlsec"` feature, you'll need to install the following C libs:
-
-- libiconv
-- libtool
-- libxml2
-- libxslt
-- libclang
-- openssl
-- pkg-config
-- xmlsec1
+**Current limitations of the pure-Rust XML stack** (tracked by ignored tests): XPath transforms and documents containing multiple `<Signature>` elements are not yet supported, because `xml-sec` 0.1.6 does not implement the XPath transform and verifies a single signature per document. `xml-sec` is also young and not yet audited — review it before relying on this backend in production.
 
 # Build instructions
 

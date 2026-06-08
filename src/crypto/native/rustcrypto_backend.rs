@@ -68,12 +68,14 @@ impl rand_core::TryRng for OsRng {
 impl rand_core::TryCryptoRng for OsRng {}
 
 /// A private signing key backed by RustCrypto.
+#[derive(Clone)]
 pub enum PrivateKey {
     Rsa(RsaPrivateKey),
     Ecdsa(Box<EcSigningKey>),
 }
 
 /// A public verification key backed by RustCrypto.
+#[derive(Clone)]
 pub enum PublicKey {
     Rsa(Box<RsaPublicKey>),
     Ecdsa(Box<EcVerifyingKey>),
