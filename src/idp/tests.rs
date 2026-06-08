@@ -440,8 +440,12 @@ fn test_xpointer_attack_fixture_does_not_verify() {
 }
 
 #[test]
-#[ignore = "xml-sec 0.1.6 does not implement the XPath transform; the pure-Rust backend cannot reduce XPath-transformed references yet"]
-fn test_xpath_transforms_validated() {
+fn test_xpath_transform_signature_is_rejected() {
+    // xml-sec does not implement the XML-DSig XPath transform, so a reference
+    // that relies on it cannot be fully evaluated. Rather than implement a
+    // partial XPath engine on the signature-verification path (a classic source
+    // of signature-bypass bugs), the pure-Rust backend fails closed: the
+    // signature is rejected and the malicious content never reaches the caller.
     let signed_xml = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/test_vectors/xpath_transform.xml"
@@ -451,18 +455,23 @@ fn test_xpath_transforms_validated() {
         "/test_vectors/idp_2_metadata_public.pem"
     )));
 
-    for (reduce_mode, should_contain_malicious) in [
-        (ReduceMode::PreDigest, false),
-        (ReduceMode::ValidateAndMark, false),
-        (ReduceMode::ValidateAndMarkNoAncestors, false),
+    for reduce_mode in [
+        ReduceMode::PreDigest,
+        ReduceMode::ValidateAndMark,
+        ReduceMode::ValidateAndMarkNoAncestors,
     ] {
-        let reduced = XmlDsig::reduce_xml_to_signed(signed_xml, &[cert.clone()], reduce_mode)
-            .expect("reduce_xml_to_signed should succeed");
-
-        assert_eq!(
-            reduced.contains("malicious"),
-            should_contain_malicious,
-            "Malicious content containment mismatch for {reduce_mode:?}: expected {should_contain_malicious}"
+        let result = XmlDsig::reduce_xml_to_signed(signed_xml, &[cert.clone()], reduce_mode);
+        // Must fail closed; in particular it must never return the malicious payload.
+        assert!(
+            result
+                .as_ref()
+                .map(|reduced| !reduced.contains("malicious"))
+                .unwrap_or(true),
+            "xpath-transformed signature leaked malicious content for {reduce_mode:?}"
+        );
+        assert!(
+            result.is_err(),
+            "xpath-transformed signature must be rejected (fail closed) for {reduce_mode:?}"
         );
     }
 }
