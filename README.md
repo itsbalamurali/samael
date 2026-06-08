@@ -43,7 +43,18 @@ The default feature set is `["openssl", "xmlsec"]`. For a pure-Rust build (no Op
 cargo build --no-default-features --features rustcrypto
 ```
 
-Note that XML digital signature signing/verification of full SAML documents (`sign_xml` / `verify_signed_xml` / `reduce_xml_to_signed`) still requires the `xmlsec` feature, which in turn requires the `openssl` backend. The `rustcrypto` backend covers redirect-binding URL signatures and certificate/key handling.
+Note that XML digital signature signing/verification of full SAML documents (`sign_xml` / `verify_signed_xml` / `reduce_xml_to_signed`) requires either the `xmlsec` feature (full sign + verify + decrypt, via libxmlsec1) or the experimental `xmldsig-rs` feature (verify-only, pure Rust — see below). The `rustcrypto` backend on its own covers redirect-binding URL signatures and certificate/key handling.
+
+### Pure-Rust XML signature verification (experimental)
+
+The `xmldsig-rs` feature adds **pure-Rust XML signature verification** with no C dependency at all — no libxmlsec1, no OpenSSL. It uses the [`xml-sec`](https://crates.io/crates/xml-sec) crate for XML canonicalization (exclusive C14N) and reference/digest processing, and the RustCrypto backend for the RSA/ECDSA math (RSA-SHA1, RSA-SHA256, ECDSA-P256-SHA256).
+
+```sh
+# Fully C-free SP-side build:
+cargo build --no-default-features --features xmldsig-rs
+```
+
+This gives a `CryptoProvider` that can `verify_signed_xml` and `reduce_xml_to_signed` (the latter returns only the canonical bytes covered by a verified signature reference, so signature-wrapping content is dropped). It is **verify-only**: `sign_xml` and encrypted-assertion decryption return `CryptoError::CryptoDisabled` — use `xmlsec` if you need IdP signing or encrypted assertions. Because `xml-sec` is young and unaudited, treat this backend as experimental; `xmlsec` remains the default, battle-tested path.
 
 If you want to use the `"xmlsec"` feature, you'll need to install the following C libs:
 

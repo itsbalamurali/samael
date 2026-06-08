@@ -34,6 +34,12 @@ rustcrypto = [
 # XML digital signature support via libxmlsec1. Requires the OpenSSL backend
 # (the xmlsec wrapper uses OpenSSL for assertion decryption).
 xmlsec = ["openssl", "libc", "lazy_static", "libxml"]
+# Experimental pure-Rust XML signature VERIFICATION via the `xml-sec` crate
+# (XML canonicalization) combined with the RustCrypto backend for the actual
+# RSA/ECDSA verification. No C dependency. Verify-only: signing and assertion
+# decryption are not supported (use `xmlsec` for those). Provides a fully
+# C-free SP-side build when combined with `rustcrypto`.
+xmldsig-rs = ["rustcrypto", "dep:xml-sec", "dep:sha1"]
 
 [build-dependencies]
 pkg-config = "^0.3.17"
@@ -53,6 +59,10 @@ x509-cert = { version = "0.3.0-rc.4", features = ["builder", "pem", "std"], opti
 signature = { version = "3.0.0-rc.10", optional = true }
 rand_core = { version = "0.10.0", optional = true }
 getrandom = { version = "0.3", optional = true }
+
+# pure-Rust XML signature verification (optional, xmldsig-rs feature)
+xml-sec = { version = "0.1.6", optional = true }
+sha1 = { version = "0.11.0-rc.2", optional = true }
 
 url = "^2.1.1"
 quick-xml = { version = "^0.37.2", features = ["serialize"] }
