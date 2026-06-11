@@ -195,6 +195,22 @@ pub(super) fn sign_enveloped(xml: &str, private_key_der: &[u8]) -> Result<String
     let signature = find_signature(&doc)?;
     let signed_info = dsig_child(signature, "SignedInfo")
         .ok_or_else(|| CryptoError::KeyError("Signature is missing SignedInfo".into()))?;
+    // We canonicalize SignedInfo with exclusive C14N below, so the template must
+    // declare that same method; otherwise the verifier would canonicalize
+    // differently and the signature would not validate.
+    let c14n_alg = dsig_child(signed_info, "CanonicalizationMethod")
+        .ok_or_else(|| {
+            CryptoError::KeyError("SignedInfo is missing CanonicalizationMethod".into())
+        })?
+        .attribute("Algorithm")
+        .ok_or_else(|| {
+            CryptoError::KeyError("CanonicalizationMethod is missing Algorithm".into())
+        })?;
+    if c14n_alg != EXC_C14N {
+        return Err(CryptoError::KeyError(format!(
+            "unsupported canonicalization method (only exclusive C14N is supported): {c14n_alg}"
+        )));
+    }
     let signature_method = dsig_child(signed_info, "SignatureMethod")
         .ok_or_else(|| CryptoError::KeyError("SignedInfo is missing SignatureMethod".into()))?;
     let sig_alg = signature_method

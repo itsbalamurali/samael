@@ -145,7 +145,13 @@ impl CryptoProvider for XmlDsig {
         _reduce_mode: ReduceMode,
     ) -> Result<String, CryptoError> {
         for cert in certs_der {
-            let key = CertKey::from_cert_der(cert.der_data())?;
+            // Skip certificates we cannot parse (malformed or unsupported key
+            // type) so a single bad cert does not prevent verification against
+            // the remaining ones.
+            let key = match CertKey::from_cert_der(cert.der_data()) {
+                Ok(key) => key,
+                Err(_) => continue,
+            };
             let result = match VerifyContext::new()
                 .key(&key)
                 .store_pre_digest(true)
