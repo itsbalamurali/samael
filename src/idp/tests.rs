@@ -3,14 +3,16 @@
 use super::*;
 use chrono::prelude::*;
 
-use crate::crypto::{CertificateDer, Crypto, CryptoProvider, ReduceMode, XmlSec};
+use crate::crypto::{CertificateDer, Crypto, CryptoProvider, ReduceMode, XmlDsig};
 use crate::idp::sp_extractor::{RequiredAttribute, SPMetadataExtractor};
 use crate::idp::verified_request::UnverifiedAuthnRequest;
 use crate::service_provider::ServiceProvider;
 
 fn cert_der_from_pem(pem: &[u8]) -> CertificateDer {
+    use x509_cert::der::{DecodePem, Encode};
+    let pem = std::str::from_utf8(pem).expect("certificate pem is not utf-8");
     CertificateDer::from(
-        openssl::x509::X509::from_pem(pem)
+        x509_cert::Certificate::from_pem(pem)
             .expect("failed to parse test certificate")
             .to_der()
             .expect("failed to encode test certificate"),
@@ -376,7 +378,7 @@ fn test_malicious_ancestors_not_included() {
         (ReduceMode::ValidateAndMark, false),
         (ReduceMode::ValidateAndMarkNoAncestors, false),
     ] {
-        let reduced = XmlSec::reduce_xml_to_signed(signed_xml, &[cert.clone()], reduce_mode)
+        let reduced = XmlDsig::reduce_xml_to_signed(signed_xml, &[cert.clone()], reduce_mode)
             .expect("reduce_xml_to_signed should succeed");
 
         assert_eq!(
@@ -403,7 +405,7 @@ fn test_object_reference_removed() {
         (ReduceMode::ValidateAndMark, false),
         (ReduceMode::ValidateAndMarkNoAncestors, false),
     ] {
-        let reduced = XmlSec::reduce_xml_to_signed(signed_xml, &[cert.clone()], reduce_mode)
+        let reduced = XmlDsig::reduce_xml_to_signed(signed_xml, &[cert.clone()], reduce_mode)
             .expect("reduce_xml_to_signed should succeed");
 
         assert_eq!(
@@ -428,7 +430,7 @@ fn test_xpointer_attack_fixture_does_not_verify() {
         .to_vec(),
     );
 
-    let error = XmlSec::verify_signed_xml(signed_xml, &cert, Some("ID"))
+    let error = XmlDsig::verify_signed_xml(signed_xml, &cert, Some("ID"))
         .expect_err("xpointer attack fixture should fail signature verification");
 
     assert!(matches!(
@@ -438,7 +440,12 @@ fn test_xpointer_attack_fixture_does_not_verify() {
 }
 
 #[test]
-fn test_xpath_transforms_validated() {
+fn test_xpath_transform_signature_is_rejected() {
+    // xml-sec does not implement the XML-DSig XPath transform, so a reference
+    // that relies on it cannot be fully evaluated. Rather than implement a
+    // partial XPath engine on the signature-verification path (a classic source
+    // of signature-bypass bugs), the pure-Rust backend fails closed: the
+    // signature is rejected and the malicious content never reaches the caller.
     let signed_xml = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/test_vectors/xpath_transform.xml"
@@ -448,18 +455,23 @@ fn test_xpath_transforms_validated() {
         "/test_vectors/idp_2_metadata_public.pem"
     )));
 
-    for (reduce_mode, should_contain_malicious) in [
-        (ReduceMode::PreDigest, false),
-        (ReduceMode::ValidateAndMark, false),
-        (ReduceMode::ValidateAndMarkNoAncestors, false),
+    for reduce_mode in [
+        ReduceMode::PreDigest,
+        ReduceMode::ValidateAndMark,
+        ReduceMode::ValidateAndMarkNoAncestors,
     ] {
-        let reduced = XmlSec::reduce_xml_to_signed(signed_xml, &[cert.clone()], reduce_mode)
-            .expect("reduce_xml_to_signed should succeed");
-
-        assert_eq!(
-            reduced.contains("malicious"),
-            should_contain_malicious,
-            "Malicious content containment mismatch for {reduce_mode:?}: expected {should_contain_malicious}"
+        let result = XmlDsig::reduce_xml_to_signed(signed_xml, &[cert.clone()], reduce_mode);
+        // Must fail closed; in particular it must never return the malicious payload.
+        assert!(
+            result
+                .as_ref()
+                .map(|reduced| !reduced.contains("malicious"))
+                .unwrap_or(true),
+            "xpath-transformed signature leaked malicious content for {reduce_mode:?}"
+        );
+        assert!(
+            result.is_err(),
+            "xpath-transformed signature must be rejected (fail closed) for {reduce_mode:?}"
         );
     }
 }

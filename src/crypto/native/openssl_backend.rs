@@ -64,7 +64,10 @@ impl PrivateKeyOps for PrivateKey {
         signer.sign_to_vec().map_err(err)
     }
 
-    fn create_certificate(&self, params: &CertificateParams) -> Result<CertificateDer, CryptoError> {
+    fn create_certificate(
+        &self,
+        params: &CertificateParams,
+    ) -> Result<CertificateDer, CryptoError> {
         let mut name = x509::X509Name::builder().map_err(err)?;
         name.append_entry_by_nid(Nid::COMMONNAME, params.common_name)
             .map_err(err)?;
@@ -79,7 +82,9 @@ impl PrivateKeyOps for PrivateKey {
 
         let serial_number = {
             let mut serial = BigNum::new().map_err(err)?;
-            serial.rand(159, MsbOption::MAYBE_ZERO, false).map_err(err)?;
+            serial
+                .rand(159, MsbOption::MAYBE_ZERO, false)
+                .map_err(err)?;
             serial.to_asn1_integer().map_err(err)?
         };
 

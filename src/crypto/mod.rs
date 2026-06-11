@@ -14,7 +14,7 @@ mod ids;
 pub mod native;
 mod url_verification;
 #[cfg(feature = "xmlsec")]
-mod xmlsec;
+mod xmldsig;
 
 use crate::schema::CipherValue;
 pub use cert_encoding::*;
@@ -23,10 +23,10 @@ pub use native::{PrivateKey, PublicKey};
 use thiserror::Error;
 pub use url_verification::{sign_url, UrlVerifier, UrlVerifierError};
 #[cfg(feature = "xmlsec")]
-pub use xmlsec::*;
+pub use xmldsig::XmlDsig;
 
 #[cfg(feature = "xmlsec")]
-pub type Crypto = XmlSec;
+pub type Crypto = XmlDsig;
 #[cfg(not(feature = "xmlsec"))]
 pub type Crypto = crypto_disabled::NoCrypto;
 
