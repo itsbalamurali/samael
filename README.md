@@ -35,11 +35,11 @@ This branch is **fully pure-Rust by default**: there is no libxmlsec1, no libxml
 Features:
 
 - `rustcrypto` (default) — native key/cert/URL crypto (`rsa`, `p256`/`ecdsa`, `sha2`, `x509-cert`). RSA (PKCS#1 v1.5 + SHA-256) and ECDSA P-256 (SHA-256).
-- `xmldsig-rs` (default) — pure-Rust XML digital signatures and XML encryption:
+- `xmlsec` (default) — pure-Rust XML digital signatures and XML encryption:
   - `sign_xml` — enveloped signatures (exclusive C14N via `xml-sec`, RSA-SHA1/RSA-SHA256 signing via `rsa`).
   - `verify_signed_xml` / `reduce_xml_to_signed` — verification (RSA-SHA1, RSA-SHA256, ECDSA-P256-SHA256). `reduce_xml_to_signed` returns only the canonical bytes covered by a verified signature reference, so signature-wrapping content is dropped.
   - assertion decryption — RSA-OAEP-MGF1P / RSA-1.5 key transport and AES-128-CBC / AES-128-GCM data decryption.
-- `openssl` (optional, non-default) — the OpenSSL-crate native backend, mutually exclusive with `rustcrypto`. Provided for callers who still want it; it does not enable `xmldsig-rs`.
+- `openssl` (optional, non-default) — the OpenSSL-crate native backend, mutually exclusive with `rustcrypto`. Provided for callers who still want it; it does not enable `xmlsec`.
 
 ```sh
 # Default: fully C-free build.

@@ -1,4 +1,4 @@
-#![cfg(feature = "xmldsig-rs")]
+#![cfg(feature = "xmlsec")]
 
 use super::*;
 use chrono::prelude::*;

@@ -1,4 +1,4 @@
-#![cfg(feature = "xmldsig-rs")]
+#![cfg(feature = "xmlsec")]
 
 #[cfg(test)]
 mod encrypted_assertion_tests {

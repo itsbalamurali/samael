@@ -1,5 +1,5 @@
 use crate::crypto::CertificateDer;
-#[cfg(feature = "xmldsig-rs")]
+#[cfg(feature = "xmlsec")]
 use crate::crypto::{Crypto, CryptoProvider};
 use crate::schema::{Conditions, Issuer, NameIdPolicy, RequestedAuthnContext, Subject};
 use crate::signature::Signature;
@@ -124,7 +124,7 @@ impl AuthnRequest {
         self
     }
 
-    #[cfg(feature = "xmldsig-rs")]
+    #[cfg(feature = "xmlsec")]
     pub fn to_signed_xml(
         &self,
         private_key_der: &[u8],
@@ -242,7 +242,7 @@ mod test {
     use crate::crypto::UrlVerifier;
 
     #[test]
-    #[cfg(feature = "xmldsig-rs")]
+    #[cfg(feature = "xmlsec")]
     pub fn test_signed_authn() -> Result<(), Box<dyn std::error::Error>> {
         let private_key = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),

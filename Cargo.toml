@@ -19,10 +19,10 @@ crate-type = ["staticlib", "rlib"]
 # Pure-Rust by default: RustCrypto key/cert/url backend + pure-Rust XML
 # digital signatures (sign + verify) and assertion decryption. No C
 # dependencies (no libxmlsec1, no libxml2, no OpenSSL).
-default = ["rustcrypto", "xmldsig-rs"]
+default = ["rustcrypto", "xmlsec"]
 # Native key/cert/url crypto backend using the OpenSSL crate (optional;
 # mutually exclusive with `rustcrypto`). Note: the pure-Rust XML stack
-# (`xmldsig-rs`) requires `rustcrypto`, so `openssl` only provides the
+# (`xmlsec`) requires `rustcrypto`, so `openssl` only provides the
 # key/cert/url operations.
 openssl = ["dep:openssl", "dep:openssl-sys", "dep:openssl-probe"]
 # Native key/cert/url crypto backend using pure-Rust RustCrypto crates.
@@ -36,11 +36,11 @@ rustcrypto = [
     "dep:rand_core",
     "dep:getrandom",
 ]
-# Pure-Rust XML digital signatures and XML encryption: signature signing &
-# verification via the `xml-sec` crate (XML canonicalization) combined with the
-# RustCrypto backend for RSA/ECDSA, and RSA/AES assertion decryption. No C
-# dependency.
-xmldsig-rs = [
+# XML digital signatures and XML encryption. Despite the historical name, this
+# is now a pure-Rust implementation (no libxmlsec1): signing & verification via
+# the `xml-sec` crate (XML canonicalization) combined with the RustCrypto
+# backend for RSA/ECDSA, plus RSA/AES assertion decryption. No C dependency.
+xmlsec = [
     "rustcrypto",
     "dep:xml-sec",
     "dep:roxmltree",

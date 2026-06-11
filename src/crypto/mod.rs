@@ -13,7 +13,7 @@ mod crypto_disabled;
 mod ids;
 pub mod native;
 mod url_verification;
-#[cfg(feature = "xmldsig-rs")]
+#[cfg(feature = "xmlsec")]
 mod xmldsig;
 
 use crate::schema::CipherValue;
@@ -22,12 +22,12 @@ pub use ids::*;
 pub use native::{PrivateKey, PublicKey};
 use thiserror::Error;
 pub use url_verification::{sign_url, UrlVerifier, UrlVerifierError};
-#[cfg(feature = "xmldsig-rs")]
+#[cfg(feature = "xmlsec")]
 pub use xmldsig::XmlDsig;
 
-#[cfg(feature = "xmldsig-rs")]
+#[cfg(feature = "xmlsec")]
 pub type Crypto = XmlDsig;
-#[cfg(not(feature = "xmldsig-rs"))]
+#[cfg(not(feature = "xmlsec"))]
 pub type Crypto = crypto_disabled::NoCrypto;
 
 #[derive(Debug, Error)]
