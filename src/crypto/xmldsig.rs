@@ -1,14 +1,15 @@
-//! Experimental pure-Rust XML signature verification backend.
+//! Experimental pure-Rust XML security stack.
 //!
-//! Implements the verification half of [`CryptoProvider`] using the pure-Rust
+//! Implements the full [`CryptoProvider`] trait using the pure-Rust
 //! [`xml-sec`](https://crates.io/crates/xml-sec) crate for XML parsing,
 //! canonicalization (exclusive C14N) and digest/reference processing, while the
 //! actual RSA / ECDSA signature math is delegated to the RustCrypto backend
 //! crates. No C dependency (no libxmlsec1, no OpenSSL).
 //!
-//! **Verify-only.** Signing (`sign_xml`) and encrypted-assertion decryption are
-//! not supported here and return [`CryptoError::CryptoDisabled`]; use the
-//! `xmlsec` feature for those.
+//! Provides enveloped XML signature generation ([`sign_xml`](XmlDsig::sign_xml)),
+//! signature verification ([`verify_signed_xml`](XmlDsig::verify_signed_xml) /
+//! [`reduce_xml_to_signed`](XmlDsig::reduce_xml_to_signed)), and
+//! encrypted-assertion decryption.
 //!
 //! Anti-wrapping: [`reduce_xml_to_signed`](XmlDsig::reduce_xml_to_signed)
 //! returns only the canonical bytes that were actually covered by a verified
