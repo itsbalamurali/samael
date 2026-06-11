@@ -36,10 +36,6 @@ rustcrypto = [
     "dep:rand_core",
     "dep:getrandom",
 ]
-# XML digital signatures and XML encryption. Despite the historical name, this
-# is now a pure-Rust implementation (no libxmlsec1): signing & verification via
-# the `xml-sec` crate (XML canonicalization) combined with the RustCrypto
-# backend for RSA/ECDSA, plus RSA/AES assertion decryption. No C dependency.
 xmlsec = [
     "rustcrypto",
     "dep:xml-sec",

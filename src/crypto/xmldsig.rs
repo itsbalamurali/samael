@@ -165,19 +165,39 @@ impl CryptoProvider for XmlDsig {
                 continue;
             }
 
-            let mut signed = Vec::new();
+            // Collect the verified pre-digest payload for each valid reference.
+            // We must NOT concatenate multiple references, as that would produce
+            // an XML document with several root elements.
+            let mut payloads: Vec<String> = Vec::new();
             for reference in &result.signed_info_references {
                 if matches!(reference.status, DsigStatus::Valid) {
                     if let Some(bytes) = &reference.pre_digest_data {
-                        signed.extend_from_slice(bytes);
+                        payloads.push(String::from_utf8(bytes.clone()).map_err(key_err)?);
                     }
                 }
             }
 
-            if signed.is_empty() {
-                continue;
+            match payloads.len() {
+                0 => continue,
+                1 => return Ok(payloads.remove(0)),
+                _ => {
+                    // Multiple signed references: return the one rooted at the
+                    // SAML payload (Response, else Assertion) rather than guessing.
+                    if let Some(payload) = payloads.iter().find(|p| {
+                        crate::service_provider::root_element_local_name(p).as_deref()
+                            == Some("Response")
+                    }) {
+                        return Ok(payload.clone());
+                    }
+                    if let Some(payload) = payloads.iter().find(|p| {
+                        crate::service_provider::root_element_local_name(p).as_deref()
+                            == Some("Assertion")
+                    }) {
+                        return Ok(payload.clone());
+                    }
+                    return Err(CryptoError::InvalidSignature);
+                }
             }
-            return String::from_utf8(signed).map_err(key_err);
         }
         Err(CryptoError::InvalidSignature)
     }

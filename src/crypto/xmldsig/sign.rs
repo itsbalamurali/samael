@@ -91,21 +91,37 @@ fn resolve_reference<'a, 'input>(
         .ok_or_else(|| CryptoError::KeyError(format!("reference target not found: #{id}")))
 }
 
-/// Splice `text` between the start and end tags of the element at `node`'s
-/// source range. Assumes a `<tag>...</tag>` (open/close) form.
+/// Splice `text` as the text content of the element at `node`'s source range,
+/// handling both the `<tag>...</tag>` (open/close) and `<tag/>` (self-closing)
+/// forms.
 fn splice_element_text(xml: &str, node: Node, text: &str) -> Result<String, CryptoError> {
+    let malformed = || CryptoError::KeyError("malformed element while splicing".into());
     let range = node.range();
     let element_src = &xml[range.clone()];
-    let open_end = element_src
-        .find('>')
-        .ok_or_else(|| CryptoError::KeyError("malformed element while splicing".into()))?;
-    let close_start = element_src
-        .rfind('<')
-        .ok_or_else(|| CryptoError::KeyError("malformed element while splicing".into()))?;
+    let open_end = element_src.find('>').ok_or_else(malformed)?;
+
+    // Self-closing form `<name .../>`: rewrite to `<name ...>text</name>`.
+    if element_src[..open_end].trim_end().ends_with('/') {
+        let qname: String = element_src[1..]
+            .chars()
+            .take_while(|c| !c.is_whitespace() && *c != '/' && *c != '>')
+            .collect();
+        if qname.is_empty() {
+            return Err(malformed());
+        }
+        let start_tag = element_src[..open_end].trim_end().trim_end_matches('/');
+        let replacement = format!("{start_tag}>{text}</{qname}>");
+        let mut out = String::with_capacity(xml.len() + replacement.len());
+        out.push_str(&xml[..range.start]);
+        out.push_str(&replacement);
+        out.push_str(&xml[range.end..]);
+        return Ok(out);
+    }
+
+    // Open/close form `<name ...>...</name>`.
+    let close_start = element_src.rfind('<').ok_or_else(malformed)?;
     if close_start <= open_end {
-        return Err(CryptoError::KeyError(
-            "expected an open/close element for splicing".into(),
-        ));
+        return Err(malformed());
     }
     let abs_content_start = range.start + open_end + 1;
     let abs_content_end = range.start + close_start;
