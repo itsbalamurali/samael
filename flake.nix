@@ -38,20 +38,15 @@
           craneLib =
             (crane.mkLib pkgs).overrideToolchain pkgs.rust-toolchain;
           lib = pkgs.lib;
-          stdenv = pkgs.stdenv;
-          commonNativeBuildInputs = with pkgs; [
-            libiconv
-            libtool
-            libxml2
-            libxslt
-            llvmPackages.libclang
-            openssl
-            pkg-config
-            xmlsec
-          ];
+
+          # samael is pure-Rust (the RustCrypto backend + the pure-Rust `xml-sec`
+          # stack), so it builds with no C libraries, no bindgen and no build
+          # script. Nothing extra is needed in nativeBuildInputs.
+
+          # Keep the test fixtures (test_vectors/) in the build source alongside
+          # the Rust sources that crane would otherwise filter out.
           fixtureFilter = path: _type:
-            builtins.match ".*test_vectors.*" path != null ||
-            builtins.match ".*\.h" path != null;
+            builtins.match ".*test_vectors.*" path != null;
           sourceAndFixtures = path: type:
             (fixtureFilter path type) || (craneLib.filterCargoSources path type);
           src = lib.cleanSourceWith {
@@ -63,29 +58,6 @@
             pname = "samael";
             inherit src;
             version = cargoFile.package.version;
-
-            # Need to tell bindgen where to find libclang
-            LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
-
-            # Set C flags for Rust's bindgen program. Unlike ordinary C
-            # compilation, bindgen does not invoke $CC directly. Instead it
-            # uses LLVM's libclang. To make sure all necessary flags are
-            # included we need to look in a few places.
-            # See https://web.archive.org/web/20220523141208/https://hoverbear.org/blog/rust-bindgen-in-nix/
-            BINDGEN_EXTRA_CLANG_ARGS = "${builtins.readFile "${stdenv.cc}/nix-support/libc-crt1-cflags"} \
-                ${builtins.readFile "${stdenv.cc}/nix-support/libc-cflags"} \
-                ${builtins.readFile "${stdenv.cc}/nix-support/cc-cflags"} \
-                ${builtins.readFile "${stdenv.cc}/nix-support/libcxx-cxxflags"} \
-                -idirafter ${pkgs.libiconv}/include \
-                ${lib.optionalString stdenv.cc.isClang "-idirafter ${stdenv.cc.cc}/lib/clang/${lib.getVersion stdenv.cc.cc}/include"} \
-                ${lib.optionalString stdenv.cc.isGNU "-isystem ${stdenv.cc.cc}/include/c++/${lib.getVersion stdenv.cc.cc} -isystem ${stdenv.cc.cc}/include/c++/${lib.getVersion stdenv.cc.cc}/${stdenv.hostPlatform.config} -idirafter ${stdenv.cc.cc}/lib/gcc/${stdenv.hostPlatform.config}/${lib.getVersion stdenv.cc.cc}/include"} \
-            ";
-
-            nativeBuildInputs = commonNativeBuildInputs;
-            # The crate is pure-Rust by default (rustcrypto + xmldsig-rs); no
-            # extra features or C libraries are required to build or test it.
-            cargoExtraArgs = "";
-            cargoTestExtraArgs = "";
           };
           # Build *just* the cargo dependencies, so we can reuse
           # all of that work (e.g. via cachix) when running in CI
@@ -100,25 +72,7 @@
 
           # `nix develop`
           devShells.default = pkgs.mkShell {
-            # Need to tell bindgen where to find libclang
-            LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
-
-            # Set C flags for Rust's bindgen program. Unlike ordinary C
-            # compilation, bindgen does not invoke $CC directly. Instead it
-            # uses LLVM's libclang. To make sure all necessary flags are
-            # included we need to look in a few places.
-            # See https://web.archive.org/web/20220523141208/https://hoverbear.org/blog/rust-bindgen-in-nix/
-            BINDGEN_EXTRA_CLANG_ARGS = "${builtins.readFile "${stdenv.cc}/nix-support/libc-crt1-cflags"} \
-                ${builtins.readFile "${stdenv.cc}/nix-support/libc-cflags"} \
-                ${builtins.readFile "${stdenv.cc}/nix-support/cc-cflags"} \
-                ${builtins.readFile "${stdenv.cc}/nix-support/libcxx-cxxflags"} \
-                -idirafter ${pkgs.libiconv}/include \
-                ${lib.optionalString stdenv.cc.isClang "-idirafter ${stdenv.cc.cc}/lib/clang/${lib.getVersion stdenv.cc.cc}/include"} \
-                ${lib.optionalString stdenv.cc.isGNU "-isystem ${stdenv.cc.cc}/include/c++/${lib.getVersion stdenv.cc.cc} -isystem ${stdenv.cc.cc}/include/c++/${lib.getVersion stdenv.cc.cc}/${stdenv.hostPlatform.config} -idirafter ${stdenv.cc.cc}/lib/gcc/${stdenv.hostPlatform.config}/${lib.getVersion stdenv.cc.cc}/include"} \
-            ";
-
             buildInputs = with pkgs; [ rust-dev-toolchain nixpkgs-fmt ];
-            nativeBuildInputs = commonNativeBuildInputs;
           };
 
           checks = {
@@ -159,8 +113,6 @@
             # the tests to run twice
             samael-nextest = craneLib.cargoNextest (commonArgs // {
               inherit cargoArtifacts;
-              cargoExtraArgs = "";
-              cargoNextestExtraArgs = "";
               partitions = 1;
               partitionType = "count";
             });
